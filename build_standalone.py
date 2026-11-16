@@ -1585,6 +1585,108 @@ html_content = r"""<!DOCTYPE html>
         display: inline-flex !important;
       }
     }
+
+    /* Doctor on Duty Clinical Layout & Condensed Components */
+    .condensed-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .condensed-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .clinical-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .rx-table, .med-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      margin-top: 8px;
+      background: var(--bg-card-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .rx-table th, .rx-table td, .med-table th, .med-table td {
+      padding: 8px 10px;
+      border: 1px solid var(--border-color);
+      text-align: left;
+    }
+    .rx-table th, .med-table th {
+      background: var(--bg-tertiary);
+      color: var(--text-heading);
+      font-weight: 700;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .rx-table td {
+      color: var(--text-soft);
+    }
+    .callout-emergency {
+      background: rgba(225, 29, 72, 0.08);
+      border-left: 4px solid #e11d48;
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      margin: 0.75rem 0;
+      color: var(--text-primary);
+    }
+    .callout-pearl {
+      background: rgba(13, 148, 136, 0.08);
+      border-left: 4px solid #0d9488;
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      margin: 0.75rem 0;
+      color: var(--text-primary);
+    }
+    .media-container {
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .media-container:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+    .media-caption {
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-card);
+    }
+    .badge-emergency {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .badge-high-yield {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -2256,6 +2358,8 @@ html_content = r"""<!DOCTYPE html>
           html += renderTable(b, bKey);
         } else if (b.type === 'paragraph') {
           html += `<p style="margin: 0.65rem 0; color:var(--text-soft); line-height:1.65;" class="${b.yield === 'low' ? 'yield-low' : ''}">${parseInline(b.text, bKey)}</p>`;
+        } else if (b.type === 'html') {
+          html += `<div class="article-html-block">${b.html}</div>`;
         }
       });
       return html;
@@ -2306,6 +2410,15 @@ html_content = r"""<!DOCTYPE html>
                        sec.id.includes("hf") ? "img/hf_echo.jpg" :
                        sec.id.includes("dka") ? "img/dka_algorithm.jpg" : "";
 
+        let figData = null;
+        if (sec.figure) {
+          figData = sec.figure;
+        } else if (sIdx === 0 && art.figure) {
+          figData = art.figure;
+        } else if (figSrc) {
+          figData = { src: figSrc, caption: `${sec.title} — Key Diagnostic & Clinical Findings` };
+        }
+
         secHtml += `
           <div class="amboss-card" id="${secKey}" data-section-id="${sec.id}">
             <button class="accordion-header" onclick="window.medbase.toggleSection('${secKey}')">
@@ -2332,7 +2445,7 @@ html_content = r"""<!DOCTYPE html>
               `).join('')}
 
               <!-- Clinical Photo figure slot -->
-              ${renderClinicalFigure({ src: figSrc, caption: `${sec.title} — Key Diagnostic & Clinical Findings` }, sec.id)}
+              ${figData ? renderClinicalFigure(figData, sec.id) : ''}
             </div>
           </div>
         `;
