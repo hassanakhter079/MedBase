@@ -148,7 +148,7 @@ html_content = """<!DOCTYPE html>
       --card-shadow-hover: 0 4px 6px -1px rgba(44, 34, 30, 0.08), 0 16px 32px -4px rgba(44, 34, 30, 0.09);
       --card-emboss: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(44, 34, 30, 0.04);
 
-      /* Callout Box Colors */
+      /* Callout Box Colors in Sepia */
       --pearl-bg: #fef3c7;
       --pearl-border: #d97706;
       --pearl-text: #78350f;
@@ -413,6 +413,7 @@ html_content = """<!DOCTYPE html>
       background: var(--bg-surface);
       display: flex;
       flex-direction: column;
+      transition: transform 0.25s ease;
     }
 
     .sidebar-tabs {
@@ -532,7 +533,7 @@ html_content = """<!DOCTYPE html>
        5. HOME PAGE / LIBRARY PORTAL VIEW
        ========================================================================== */
     #home-view {
-      display: none;
+      display: block;
     }
 
     .home-hero {
@@ -693,7 +694,7 @@ html_content = """<!DOCTYPE html>
        6. ARTICLE MONOGRAPH VIEW & CARDS
        ========================================================================== */
     #article-view {
-      display: block;
+      display: none;
     }
 
     .amboss-card {
@@ -1348,6 +1349,16 @@ html_content = """<!DOCTYPE html>
       }
       .left-sidebar {
         display: none;
+        position: fixed;
+        top: 64px;
+        left: 0;
+        bottom: 0;
+        width: 290px;
+        z-index: 99;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      }
+      .left-sidebar.mobile-open {
+        display: flex !important;
       }
       .center-content {
         padding: 1.5rem 1.15rem;
@@ -1371,7 +1382,7 @@ html_content = """<!DOCTYPE html>
        ======================================================================== -->
   <header class="top-navbar">
     <div style="display: flex; align-items: center; gap: 0.75rem;">
-      <button id="mobile-nav-toggle" class="icon-only-btn" style="display: none;" title="Toggle Outline">
+      <button id="mobile-nav-toggle" class="icon-only-btn" style="display: none;" title="Toggle Navigation Sidebar">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
 
@@ -1712,9 +1723,10 @@ html_content = """<!DOCTYPE html>
     <div id="lightbox-caption"></div>
   </div>
 
-  <!-- EMBEDDED MEDBASE DATA -->
+  <!-- EMBEDDED MEDBASE DATA (EXPOSED GLOBALLY) -->
   <script>
-    const MEDBASE_DATA = """ + json.dumps(med_data, ensure_ascii=False) + """;
+    window.MEDBASE_DATA = """ + json.dumps(med_data, ensure_ascii=False) + """;
+    var MEDBASE_DATA = window.MEDBASE_DATA;
   </script>
 
   <!-- ========================================================================
@@ -1743,11 +1755,7 @@ html_content = """<!DOCTYPE html>
       activeTooltipTerm: null
     };
 
-    // Apply initial theme
-    applyTheme(state.theme);
-    if (state.highlightsActive) document.body.classList.add('highlights-active');
-
-    // --- DOM Elements ---
+    // --- DOM Elements (Declared FIRST to avoid Temporal Dead Zone ReferenceErrors) ---
     const els = {
       themeBtn: document.getElementById('toggle-theme-btn'),
       themeLabel: document.getElementById('theme-label'),
@@ -1778,9 +1786,12 @@ html_content = """<!DOCTYPE html>
       hyBanner: document.getElementById('hy-banner'),
       turnOffHyBtn: document.getElementById('turn-off-hy-btn'),
       homeView: document.getElementById('home-view'),
-      articleView: document.getElementById('article-view')
+      articleView: document.getElementById('article-view'),
+      mobileNavBtn: document.getElementById('mobile-nav-toggle'),
+      leftSidebar: document.querySelector('.left-sidebar')
     };
 
+    // --- Theme Engine ---
     function applyTheme(th) {
       state.theme = th;
       document.documentElement.setAttribute('data-theme', th);
@@ -1807,6 +1818,10 @@ html_content = """<!DOCTYPE html>
       applyTheme(nextTheme);
     }
 
+    // Apply initial theme safely
+    applyTheme(state.theme);
+    if (state.highlightsActive) document.body.classList.add('highlights-active');
+
     // --- View Navigation ---
     function goHome() {
       state.currentView = 'home';
@@ -1814,7 +1829,14 @@ html_content = """<!DOCTYPE html>
       els.articleView.style.display = 'none';
 
       // Switch left sidebar to Library tab
-      document.querySelector('.sidebar-tab-btn[data-tab="library"]').click();
+      const libTab = document.querySelector('.sidebar-tab-btn[data-tab="library"]');
+      if (libTab) libTab.click();
+
+      // Close mobile drawer if open
+      if (els.leftSidebar && els.leftSidebar.classList.contains('mobile-open')) {
+        els.leftSidebar.classList.remove('mobile-open');
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -1828,7 +1850,14 @@ html_content = """<!DOCTYPE html>
       renderLibraryTree();
 
       // Switch left sidebar to Outline tab
-      document.querySelector('.sidebar-tab-btn[data-tab="outline"]').click();
+      const outlineTab = document.querySelector('.sidebar-tab-btn[data-tab="outline"]');
+      if (outlineTab) outlineTab.click();
+
+      // Close mobile drawer if open
+      if (els.leftSidebar && els.leftSidebar.classList.contains('mobile-open')) {
+        els.leftSidebar.classList.remove('mobile-open');
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -2017,7 +2046,7 @@ html_content = """<!DOCTYPE html>
 
     // --- Render Article ---
     function renderArticle(artId) {
-      const art = MEDBASE_DATA.ARTICLES[artId];
+      const art = (window.MEDBASE_DATA && window.MEDBASE_DATA.ARTICLES) ? window.MEDBASE_DATA.ARTICLES[artId] : null;
       if (!art) return;
       state.activeArticleId = artId;
       state.allBlankIds = [];
@@ -2034,7 +2063,7 @@ html_content = """<!DOCTYPE html>
       let secHtml = '';
       let tocHtml = '';
 
-      art.sections.forEach((sec, sIdx) => {
+      (art.sections || []).forEach((sec, sIdx) => {
         const secKey = `sec-${sec.id}`;
         tocHtml += `<a href="#${secKey}" class="toc-item" data-sec-id="${sec.id}">${sec.title}</a>`;
 
@@ -2085,7 +2114,8 @@ html_content = """<!DOCTYPE html>
     // --- Render Library Tree ---
     function renderLibraryTree() {
       let html = '';
-      (MEDBASE_DATA.LIBRARY_TREE || []).forEach(cat => {
+      const tree = (window.MEDBASE_DATA && window.MEDBASE_DATA.LIBRARY_TREE) || [];
+      tree.forEach(cat => {
         html += `<div class="library-node">`;
         html += `<div class="library-node-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg> <span>${cat.label}</span></div>`;
         html += `<div class="library-children">`;
@@ -2127,7 +2157,7 @@ html_content = """<!DOCTYPE html>
     // --- Tooltip Logic ---
     function showTooltip(termId, event) {
       if (state.quizModeActive) return;
-      const term = MEDBASE_DATA.MEDICAL_GLOSSARY && MEDBASE_DATA.MEDICAL_GLOSSARY[termId];
+      const term = window.MEDBASE_DATA && window.MEDBASE_DATA.MEDICAL_GLOSSARY && window.MEDBASE_DATA.MEDICAL_GLOSSARY[termId];
       if (!term) return;
 
       state.activeTooltipTerm = term;
@@ -2181,7 +2211,8 @@ html_content = """<!DOCTYPE html>
       const q = query.toLowerCase().trim();
       let matches = [];
 
-      Object.entries(MEDBASE_DATA.ARTICLES || {}).forEach(([aId, art]) => {
+      const arts = (window.MEDBASE_DATA && window.MEDBASE_DATA.ARTICLES) || {};
+      Object.entries(arts).forEach(([aId, art]) => {
         if (art.title.toLowerCase().includes(q)) {
           matches.push({ type: 'Article', title: art.title, desc: art.summary, action: () => { selectArticle(aId); closeSearch(); } });
         }
@@ -2192,7 +2223,8 @@ html_content = """<!DOCTYPE html>
         });
       });
 
-      Object.entries(MEDBASE_DATA.MEDICAL_GLOSSARY || {}).forEach(([tId, term]) => {
+      const glossary = (window.MEDBASE_DATA && window.MEDBASE_DATA.MEDICAL_GLOSSARY) || {};
+      Object.entries(glossary).forEach(([tId, term]) => {
         if (term.title.toLowerCase().includes(q) || (term.definition && term.definition.toLowerCase().includes(q))) {
           matches.push({
             type: term.category || 'Term',
@@ -2391,6 +2423,20 @@ html_content = """<!DOCTYPE html>
         document.getElementById('tab-library').style.display = tab === 'library' ? 'block' : 'none';
       });
     });
+
+    // Mobile Navigation Drawer Toggle
+    if (els.mobileNavBtn && els.leftSidebar) {
+      els.mobileNavBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        els.leftSidebar.classList.toggle('mobile-open');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.left-sidebar') && !e.target.closest('#mobile-nav-toggle') && els.leftSidebar.classList.contains('mobile-open')) {
+          els.leftSidebar.classList.remove('mobile-open');
+        }
+      });
+    }
 
     // Initialize App: Default to Home Page
     renderLibraryTree();
